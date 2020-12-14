@@ -1,22 +1,26 @@
-chan NetworkSent = [0] of {int};
-chan NetworkRecv = [0] of {int};
+#include "message.pml"
+
+chan NetworkSent = [0] of { Message };
+chan NetworkRecv = [0] of { Message };
 
 proctype UnreliableNetwork() {
     int buffer[4];
-    int read;
+    Message read;
+    Message write;
     do
     ::  NetworkRecv ? read;
         do
         ::  true -> break;
-        ::  true -> buffer[0] = read;
-        ::  true -> buffer[1] = read;
-        ::  true -> buffer[2] = read;
-        ::  true -> buffer[3] = read;
+        ::  true -> buffer[0] = read.payload;
+        ::  true -> buffer[1] = read.payload;
+        ::  true -> buffer[2] = read.payload;
+        ::  true -> buffer[3] = read.payload;
         od
 
         do
         ::  true -> break;
-        ::  true -> NetworkSent ! buffer[0];
+        ::  true -> write.payload = buffer[0];
+                    NetworkSent ! write;
                     buffer[0] = buffer[1];
                     buffer[1] = buffer[2];
                     buffer[2] = buffer[3];
@@ -28,15 +32,17 @@ proctype TestSender() {
     int i;
     for (i : 1 .. 30) {
         printf("@tss TestSender sent %d\n", i);
-        NetworkRecv ! i;
+        Message send;
+        send.payload = i;
+        NetworkRecv ! send;
     }
 }
 
 proctype TestReceiver() {
-    int recv;
+    Message recv;
     do
     ::  NetworkSent ? recv;
-        printf("@trr TestReceiver received %d\n", recv);
+        printf("@trr TestReceiver received %d\n", recv.payload);
     od
 }
 
