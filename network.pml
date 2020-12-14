@@ -1,6 +1,7 @@
 #include "message.pml"
+#define NUM_SERVER 5
 
-chan NetworkSent = [0] of { Message };
+chan NetworkSent[NUM_SERVER] = [0] of { Message };
 chan NetworkRecv = [0] of { Message };
 
 proctype UnreliableNetwork() {
@@ -19,8 +20,10 @@ proctype UnreliableNetwork() {
 
         do
         ::  true -> break;
-        ::  true -> write.payload = buffer[0];
-                    NetworkSent ! write;
+        ::  true -> write.payload = read.payload;
+                    write.from = read.from;
+                    write.to = read.to;
+                    NetworkSent[read.to] ! write;
                     buffer[0] = buffer[1];
                     buffer[1] = buffer[2];
                     buffer[2] = buffer[3];
@@ -31,24 +34,35 @@ proctype UnreliableNetwork() {
 proctype TestSender() {
     int i;
     for (i : 1 .. 30) {
-        printf("@tss TestSender sent %d\n", i);
         Message send;
         send.payload = i;
+        send.from = 0;
+        int sendTo = 0;
+        do
+        ::  sendTo < NUM_SERVER - 1 -> sendTo++;
+        ::  sendTo > 0              -> sendTo--;
+        ::  true                    -> break;
+        od;
+        send.to = sendTo;
         NetworkRecv ! send;
+        printf("@tss TestSender sent %d to %d\n", i, sendTo);
     }
 }
 
-proctype TestReceiver() {
+proctype TestReceiver(int serverNo) {
     Message recv;
     do
-    ::  NetworkSent ? recv;
-        printf("@trr TestReceiver received %d\n", recv.payload);
+    ::  NetworkSent[serverNo] ? recv;
+        printf("@trr%d TestReceiver received %d from server #%d\n", serverNo, recv.payload, recv.from);
     od
 }
 
 init {
     run UnreliableNetwork();
     run TestSender();
-    run TestReceiver();
+    int i;
+    for (i : 0 .. NUM_SERVER - 1) {
+        run TestReceiver(i);
+    }
 }
 
