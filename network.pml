@@ -4,8 +4,8 @@
 
 mtype:status = { leader, candidate, follower }
 
-chan NetworkSent[NUM_SERVER] = [1] of { mtype:message, int, int, int, bool }
-chan NetworkRecv             = [1] of { mtype:message, int, int, int, bool }
+chan NetworkSent[NUM_SERVER] = [1] of { mtype:message, int, int, int, int, bool }
+chan NetworkRecv             = [1] of { mtype:message, int, int, int, int, bool }
 
 proctype UnreliableNetwork() {
     int buffer[4];
@@ -82,17 +82,17 @@ proctype Server(int serverID) {
         ::  true -> skip; /* decrease timer */
         ::  true ->
             skip; /* TODO timeout */
-        ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _] ->
-            NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _;
+        ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _, _] ->
+            NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _, _;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _] ->
-            NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_candidateID, _;
+        ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _, _] ->
+            NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_term, msg_candidateID, _;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _] ->
-            NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, msg_success;
+        ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
+            NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _] ->
-            NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, msg_voteGranted;
+        ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _, _] ->
+            NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
             skip; /* TODO */
         fi
     ::  status == candidate ->
@@ -100,17 +100,17 @@ proctype Server(int serverID) {
         ::  true -> skip; /* decrease timer */
         ::  true ->
             skip; /* TODO timeout */
-        ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _] ->
-            NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _;
+        ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _, _] ->
+            NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _, _;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _] ->
-            NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_candidateID, _;
+        ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _, _] ->
+            NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_term, msg_candidateID, _;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _] ->
-            NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, msg_success;
+        ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
+            NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _] ->
-            NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, msg_voteGranted;
+        ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _, _] ->
+            NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
             skip; /* TODO */
         fi
     ::  status == follower ->
@@ -127,17 +127,17 @@ proctype Server(int serverID) {
                 ::  else            -> skip
                 fi
             }
-        ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _] ->
-            NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _;
+        ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _, _] ->
+            NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _, _;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _] ->
-            NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_candidateID, _;
+        ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _, _] ->
+            NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_term, msg_candidateID, _;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _] ->
-            NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, msg_success;
+        ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
+            NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
             skip; /* TODO */
-        ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _] ->
-            NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, msg_voteGranted;
+        ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _, _] ->
+            NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
             skip; /* TODO */
         fi
     od
