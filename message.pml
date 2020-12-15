@@ -4,3 +4,5 @@ typedef Message {
     int payload;
 }
 
+mtype:message = { appendEntryRequest, appendEntryResponse, requestVoteRequest, requestVoteResponse }
+
