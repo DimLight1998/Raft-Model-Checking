@@ -18,10 +18,10 @@
 
 ### 消息的规范
 
-| 消息类型            | 参数 (int)            | 参数 (int)          | 参数 (int)             | 参数 (int)             | 参数 (bool)          |
-|---------------------|-----------------------|---------------------|------------------------|------------------------|----------------------|
-| appendEntryRequest  | 消息接收者 receiverID | 消息发送者 senderID | 领导者任期 term        | （不使用）| （不使用）           |
-| requestVoteRequest  | 消息接收者 receiverID | 消息发送者 senderID | 候选者任期 term | 候选者编号 candidateID | （不使用）           |
-| appendEntryResponse | 消息接收者 receiverID | 消息发送者 senderID | 发送者任期猜测 term    | （不使用）| 接收心跳包 success   |
-| requestVoteResponse | 消息接收者 receiverID | 消息发送者 senderID | 发送者任期猜测 term    | （不使用）| 进行投票 voteGranted |
+| 消息类型            | 参数 (int)            | 参数 (int)          | 参数 (int)          | 参数 (int)             | 参数 (bool)          |
+|---------------------|-----------------------|---------------------|---------------------|------------------------|----------------------|
+| appendEntryRequest  | 消息接收者 receiverID | 消息发送者 senderID | 领导者任期 term     | （不使用）             | （不使用）           |
+| requestVoteRequest  | 消息接收者 receiverID | 消息发送者 senderID | 候选者任期 term     | 候选者编号 candidateID | （不使用）           |
+| appendEntryResponse | 消息接收者 receiverID | 消息发送者 senderID | 发送者任期猜测 term | （不使用）             | 接收心跳包 success   |
+| requestVoteResponse | 消息接收者 receiverID | 消息发送者 senderID | 发送者任期猜测 term | （不使用）             | 进行投票 voteGranted |
 
