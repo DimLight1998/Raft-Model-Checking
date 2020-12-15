@@ -117,7 +117,16 @@ proctype Server(int serverID) {
         if
         ::  true -> skip; /* decrease timer */
         ::  true ->
-            skip; /* TODO timeout */
+            status = candidate;
+            currentTerm++;
+            votedFor = serverID;
+            votedForMe = 1;
+            for (it : 0 .. NUM_SERVER - 1) {
+                if
+                ::  it != serverID  -> NetworkRecv ! requestVoteRequest, it, serverID, serverID, false;
+                ::  else            -> skip
+                fi
+            }
         ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _;
             skip; /* TODO */
