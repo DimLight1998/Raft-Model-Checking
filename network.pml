@@ -122,7 +122,18 @@ proctype Server(int serverID) {
             fi
         ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_term, msg_candidateID, _;
-            skip; /* TODO */
+            if
+            ::  msg_term < currentTerm ->
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, false;
+            ::  msg_term > currentTerm ->
+                status = follower;
+                currentTerm = msg_term;
+                votedFor = candidateID;
+                votedForMe = 0;
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
+            ::  msg_term == currentTerm ->
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, false;
+            fi
         ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
             skip; /* ignored; candidate should not handle such response; it must be sent from an outdated server */
