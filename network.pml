@@ -120,7 +120,7 @@ proctype Server(int serverID) {
                 ::  else -> skip;
                 fi
             /* case: current server is outdated; convert to follower */
-            ::  msg_voteGranted == false && msg_term > currentTerm ->
+            ::  msg_term > currentTerm ->
                 status = follower;
                 currentTerm = msg_term;
                 votedFor = -1;
