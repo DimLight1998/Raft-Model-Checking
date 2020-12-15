@@ -132,7 +132,20 @@ proctype Server(int serverID) {
             skip; /* TODO */
         ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_term, msg_candidateID, _;
-            skip; /* TODO */
+            if
+            /* case: outdated candidate; send newer term by currentTerm; reject vote */
+            ::  msg_term < currentTerm ->
+                NetworkSent[serverID] ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, false;
+            /* case: this server is outdated; update currentTerm; grant vote */
+            ::  msg_term > currentTerm ->
+                currentTerm = msg_term;
+                votedFor = msg_candidateID;
+                NetworkSent[serverID] ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
+            /* case: this server and candidate is up-to-date; vote if not voted yet or voted for the same candidate */
+            ::  msg_term == currentTerm && (votedFor == -1 || votedFor == msg_candidateID) ->
+                votedFor = msg_candidateID;
+                NetworkSent[serverID] ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
+            fi
         ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
             skip; /* TODO */
