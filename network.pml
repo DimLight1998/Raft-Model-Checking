@@ -160,10 +160,10 @@ proctype Server(int serverID) {
             fi
         ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
-            skip; /* TODO */
+            skip; /* ignored; follower should not handle response; it must be sent from an outdated server */
         ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
-            skip; /* TODO */
+            skip; /* ignored; follower should not handle response; it must be sent from an outdated server */
         fi
     od
 }
