@@ -109,7 +109,7 @@ proctype Server(int serverID) {
             ::  msg_term > currentTerm ->
                 status = follower;
                 currentTerm = msg_term;
-                votedFor = candidateID;
+                votedFor = msg_candidateID;
                 votedForMe = 0;
                 NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
             ::  msg_term == currentTerm ->
@@ -183,7 +183,7 @@ proctype Server(int serverID) {
             ::  msg_term > currentTerm ->
                 status = follower;
                 currentTerm = msg_term;
-                votedFor = candidateID;
+                votedFor = msg_candidateID;
                 votedForMe = 0;
                 NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
             ::  msg_term == currentTerm ->
