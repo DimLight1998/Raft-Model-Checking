@@ -123,7 +123,7 @@ proctype Server(int serverID) {
             votedForMe = 1;
             for (it : 0 .. NUM_SERVER - 1) {
                 if
-                ::  it != serverID  -> NetworkRecv ! requestVoteRequest, it, serverID, serverID, false;
+                ::  it != serverID  -> NetworkRecv ! requestVoteRequest, it, serverID, currentTerm, serverID, false;
                 ::  else            -> skip
                 fi
             }
