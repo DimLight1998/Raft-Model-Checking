@@ -25,3 +25,7 @@
 | appendEntryResponse | 消息接收者 receiverID | 消息发送者 senderID | 发送者任期猜测 term | （不使用）             | 接收心跳包 success   |
 | requestVoteResponse | 消息接收者 receiverID | 消息发送者 senderID | 发送者任期猜测 term | （不使用）             | 进行投票 voteGranted |
 
+## 2020-12-16
+
+- 我感觉现在的实现顺序有些问题；应该先实现每种角色重叠的行为的，比如如果受到了任何消息，其中 term 要比自己的 currentTerm 大就更新自己的 currentTerm 这种。
+

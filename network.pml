@@ -102,7 +102,24 @@ proctype Server(int serverID) {
             skip; /* TODO timeout */
         ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _, _;
-            skip; /* TODO */
+            if
+            /* case: outdated sender server; send newer term by currentTerm; reject entry appending */
+            ::  msg_term < currentTerm ->
+                NetworkRecv ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, false;
+            /* case: current server is outdated; convert to follower */
+            ::  msg_term > currentTerm ->
+                status = follower;
+                currentTerm = msg_term;
+                votedFor = -1;
+                votedForMe = 0;
+                NetworkRecv ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, true;
+            /* case: with in the same term, a leader has already be elected; convert to follower */
+            ::  msg_term == currentTerm ->
+                status = follower;
+                votedFor = -1;
+                votedForMe = 0;
+                NetworkRecv ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, true;
+            fi
         ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_term, msg_candidateID, _;
             skip; /* TODO */
