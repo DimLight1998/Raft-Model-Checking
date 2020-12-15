@@ -81,19 +81,66 @@ proctype Server(int serverID) {
         if
         ::  true -> skip; /* decrease timer */
         ::  true ->
-            skip; /* TODO timeout */
+            for (it : 0 .. NUM_SERVER - 1) {
+                if
+                ::  it != serverID  -> NetworkRecv ! appendEntryRequest, it, serverID, currentTerm, 0, false;
+                ::  else            -> skip
+                fi
+            }
         ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _, _;
-            skip; /* TODO */
+            if
+            ::  msg_term < currentTerm ->
+                NetworkRecv ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, false;
+            ::  msg_term > currentTerm ->
+                status = follower;
+                currentTerm = msg_term;
+                votedFor = -1;
+                votedForMe = 0;
+                NetworkRecv ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, true;
+            ::  msg_term == currentTerm ->
+                skip /* such situation should not happen as there is atmost one leader */
+            fi
         ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_term, msg_candidateID, _;
-            skip; /* TODO */
+            if
+            ::  msg_term < currentTerm ->
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, false;
+            ::  msg_term > currentTerm ->
+                status = follower;
+                currentTerm = msg_term;
+                votedFor = candidateID;
+                votedForMe = 0;
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
+            ::  msg_term == currentTerm ->
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, false;
+            fi
         ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
-            skip; /* TODO */
+            if
+            ::  msg_term < currentTerm ->
+                skip /* it can do nothing */
+            ::  msg_term > currentTerm ->
+                status = follower;
+                currentTerm = msg_term;
+                votedFor = -1;
+                votedForMe = 0;
+            ::  msg_term == currentTerm ->
+                skip /* such case should not happen */
+            fi
         ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
-            skip; /* TODO */
+            if
+            ::  msg_term < currentTerm ->
+                skip /* it can do nothing */
+            ::  msg_term > currentTerm ->
+                status = follower;
+                currentTerm = msg_term;
+                votedFor = -1;
+                votedForMe = 0;
+            ::  msg_term == currentTerm ->
+                skip /* everything is normal (and success should be true) */
+            fi
         fi
     ::  status == candidate ->
         if
