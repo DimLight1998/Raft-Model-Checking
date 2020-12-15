@@ -163,33 +163,33 @@ proctype Server(int serverID) {
         ::  NetworkSent[serverID] ? [appendEntryRequest, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryRequest, msg_receiverID, msg_senderID, msg_term, _, _;
             if
-            /* case: outdated candidate; send newer term by currentTerm; reject entry appending */
+            /* case: outdated sender server; send newer term by currentTerm; reject entry appending */
             ::  msg_term < currentTerm ->
-                NetworkSent[serverID] ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, false;
+                NetworkRecv ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, false;
             /* case: this server is outdated; update currentTerm; accept entry appending */
             ::  msg_term > currentTerm ->
                 currentTerm = msg_term;
                 votedFor = -1;
-                NetworkSent[serverID] ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, true;
-            /* case: this server and candidate is up-to-date; accept heartbeat */
+                NetworkRecv ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, true;
+            /* case: this server and sender server is up-to-date; accept heartbeat */
             ::  msg_term == currentTerm ->
-                NetworkSent[serverID] ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, true;
+                NetworkRecv ! appendEntryResponse, msg_senderID, serverID, currentTerm, 0, true;
             fi
         ::  NetworkSent[serverID] ? [requestVoteRequest, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteRequest, msg_receiverID, msg_senderID, msg_term, msg_candidateID, _;
             if
             /* case: outdated candidate; send newer term by currentTerm; reject vote */
             ::  msg_term < currentTerm ->
-                NetworkSent[serverID] ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, false;
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, false;
             /* case: this server is outdated; update currentTerm; grant vote */
             ::  msg_term > currentTerm ->
                 currentTerm = msg_term;
                 votedFor = msg_candidateID;
-                NetworkSent[serverID] ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
             /* case: this server and candidate is up-to-date; vote if not voted yet or voted for the same candidate */
             ::  msg_term == currentTerm && (votedFor == -1 || votedFor == msg_candidateID) ->
                 votedFor = msg_candidateID;
-                NetworkSent[serverID] ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
+                NetworkRecv ! requestVoteResponse, msg_senderID, serverID, currentTerm, 0, true;
             fi
         ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
