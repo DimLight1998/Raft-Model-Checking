@@ -111,7 +111,23 @@ proctype Server(int serverID) {
             skip; /* ignored; candidate should not handle such response; it must be sent from an outdated server */
         ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
-            skip; /* TODO */
+            if
+            /* case: get a vote; check if we have the vote from the majority; change to leader if yes */
+            ::  msg_voteGranted == true ->
+                votedForMe++;
+                if
+                ::  votedForMe >= NUM_MAJOR -> status = leader;
+                ::  else -> skip;
+                fi
+            /* case: current server is outdated; convert to follower */
+            ::  msg_voteGranted == false && msg_term > currentTerm ->
+                status = follower;
+                currentTerm = msg_term;
+                votedFor = -1;
+                votedForMe = 0;
+            /* case: maybe the server has already voted for someone else */
+            ::  else -> skip;
+            fi
         fi
     ::  status == follower ->
         if
