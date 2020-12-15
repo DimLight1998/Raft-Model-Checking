@@ -108,7 +108,7 @@ proctype Server(int serverID) {
             skip; /* TODO */
         ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
-            skip; /* TODO */
+            skip; /* ignored; candidate should not handle such response; it must be sent from an outdated server */
         ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
             skip; /* TODO */
