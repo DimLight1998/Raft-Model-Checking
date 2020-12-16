@@ -7,6 +7,21 @@ mtype:status = { leader, candidate, follower }
 chan NetworkSent[NUM_SERVER] = [1] of { mtype:message, int, int, int, int, bool }
 chan NetworkRecv             = [1] of { mtype:message, int, int, int, int, bool }
 
+proctype ReliableNetwork() {
+    mtype:message messageHead;
+
+    int  msg_f1;
+    int  msg_f2;
+    int  msg_f3;
+    int  msg_f4;
+    bool msg_f5;
+
+    do
+    ::  NetworkRecv ? messageHead, msg_f1, msg_f2, msg_f3, msg_f4, msg_f5;
+        NetworkSent[msg_f1] ! messageHead, msg_f1, msg_f2, msg_f3, msg_f4, msg_f5;
+    od
+}
+
 proctype UnreliableNetwork() {
     int buffer[4];
     Message read;
