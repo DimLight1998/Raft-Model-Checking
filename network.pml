@@ -283,11 +283,10 @@ proctype Server(int serverID) {
 }
 
 init {
-    run UnreliableNetwork();
-    run TestSender();
+    run ReliableNetwork();
     int i;
     for (i : 0 .. NUM_SERVER - 1) {
-        run TestReceiver(i);
+        run Server(i);
     }
 }
 
