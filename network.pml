@@ -159,7 +159,7 @@ proctype Server(int serverID) {
         fi
         /* TODO debug code */
         if
-        ::  status == follower -> printf("server %d changed from leader to follower at term %d\n", serverID, currentTerm);
+        ::  status == follower -> printf("server %d changed from leader to follower at term %d, cause: %d\n", serverID, currentTerm, msg_senderID);
         ::  else -> skip
         fi
         /* end debug code */
