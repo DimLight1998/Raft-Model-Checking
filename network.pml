@@ -7,6 +7,11 @@ mtype:status = { leader, candidate, follower }
 chan NetworkSent[NUM_SERVER] = [1] of { mtype:message, int, int, int, int, bool }
 chan NetworkRecv             = [1] of { mtype:message, int, int, int, int, bool }
 
+int  global_lastLeaderID = -1;
+int  global_lastLeaderTerm = -1;
+bool global_multiLeaderInOneTerm = false;
+ltl  electionSafety { [] (!global_multiLeaderInOneTerm) }
+
 proctype ReliableNetwork() {
     mtype:message messageHead;
 
@@ -17,7 +22,8 @@ proctype ReliableNetwork() {
     bool msg_f5;
 
     do
-    ::  NetworkRecv ? messageHead, msg_f1, msg_f2, msg_f3, msg_f4, msg_f5;
+    ::  true ->
+        NetworkRecv         ? messageHead, msg_f1, msg_f2, msg_f3, msg_f4, msg_f5;
         NetworkSent[msg_f1] ! messageHead, msg_f1, msg_f2, msg_f3, msg_f4, msg_f5;
     od
 }
@@ -27,15 +33,12 @@ proctype UnreliableNetwork() {
     Message read;
     Message write;
     do
-    ::  NetworkRecv ? read;
-        do
-        ::  true -> break;
-        ::  true -> buffer[0] = read.payload;
-        ::  true -> buffer[1] = read.payload;
-        ::  true -> buffer[2] = read.payload;
-        ::  true -> buffer[3] = read.payload;
-        od
-
+    ::  true ->
+        NetworkRecv ? read;
+        if :: true -> skip; :: true -> buffer[0] = read.payload; fi
+        if :: true -> skip; :: true -> buffer[1] = read.payload; fi
+        if :: true -> skip; :: true -> buffer[2] = read.payload; fi
+        if :: true -> skip; :: true -> buffer[3] = read.payload; fi
         do
         ::  true -> break;
         ::  true -> write.payload = read.payload;
@@ -93,6 +96,15 @@ proctype Server(int serverID) {
 
     do
     ::  status == leader ->
+        printf("leader #%d, term %d, status: %d\n", serverID, currentTerm, status);
+        /* update global leader information */
+        if
+        ::  global_lastLeaderTerm < currentTerm ->
+            global_lastLeaderTerm = currentTerm;
+            global_lastLeaderID = serverID;
+        ::  global_lastLeaderTerm == currentTerm && global_lastLeaderID != serverID ->
+            global_multiLeaderInOneTerm = true;
+        fi
         if
         ::  true -> skip; /* decrease timer */
         ::  true ->
@@ -157,12 +169,6 @@ proctype Server(int serverID) {
                 skip /* everything is normal (and success should be true) */
             fi
         fi
-        /* TODO debug code */
-        if
-        ::  status == follower -> printf("server %d changed from leader to follower at term %d, cause: %d\n", serverID, currentTerm, msg_senderID);
-        ::  else -> skip
-        fi
-        /* end debug code */
     ::  status == candidate ->
         if
         ::  true -> skip; /* decrease timer */
@@ -217,14 +223,10 @@ proctype Server(int serverID) {
             NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
             if
             /* case: get a vote; check if we have the vote from the majority; change to leader if yes */
-            ::  msg_voteGranted == true ->
+            ::  msg_term == currentTerm && msg_voteGranted == true ->
                 votedForMe++;
                 if
-                ::  votedForMe >= NUM_MAJOR ->
-                    status = leader;
-                    /* TODO debug code */
-                    printf("server %d changed to leader at term %d\n", serverID, currentTerm);
-                    /* end debug code */
+                ::  votedForMe >= NUM_MAJOR -> status = leader; printf("%d changed to leader at %d\n", serverID, currentTerm);
                 ::  else -> skip;
                 fi
             /* case: current server is outdated; convert to follower */
@@ -284,10 +286,10 @@ proctype Server(int serverID) {
             fi
         ::  NetworkSent[serverID] ? [appendEntryResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? appendEntryResponse, msg_receiverID, msg_senderID, msg_term, _, msg_success;
-            skip; /* ignored; follower should not handle response; it must be sent from an outdated server */
+            /* ignored; follower should not handle response; it must be sent from an outdated server */
         ::  NetworkSent[serverID] ? [requestVoteResponse, _, _, _, _, _] ->
             NetworkSent[serverID] ? requestVoteResponse, msg_receiverID, msg_senderID, msg_term, _, msg_voteGranted;
-            skip; /* ignored; follower should not handle response; it must be sent from an outdated server */
+            /* ignored; follower should not handle response; it must be sent from an outdated server */
         fi
     od
 }
