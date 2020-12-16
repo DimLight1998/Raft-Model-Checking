@@ -1,5 +1,9 @@
 # Project Log
 
+## Todolist
+
+- [ ] 解决发包阻塞的问题（目前使用 `-m`）
+
 ## 2020-12-11
 
 - 在进行了工具的比较之后我决定选择 SPIN 作为建模的语言，毕竟要 high-level 一些，写起来更加舒服。问题在于 SPIN 可能不是为这种类型的问题而设计的，不过它把消息传递设计为语言自带的特性这一点比较好。
@@ -28,4 +32,42 @@
 ## 2020-12-16
 
 - 我感觉现在的实现顺序有些问题；应该先实现每种角色重叠的行为的，比如如果受到了任何消息，其中 term 要比自己的 currentTerm 大就更新自己的 currentTerm 这种。
+- 发现了一个问题：现在的网络通信存在问题！发送了一个包之后应该马上返回，但是现在的实现中还是会阻塞（直到包进入缓存）。目前可以通过加上 `-m` 参数来暂时规避这个问题，不过这不是长久之计。
+
+---
+
+为什么会出现下面这种问题？明明只有一个 leader 产生，但是会有多个 server 从 leader 状态退出？
+
+```shell
+$ spin -m -T network.pml
+server 0 changed to leader at term 3562
+server 0 changed from leader to follower at term 3563
+server 1 changed from leader to follower at term 3563
+server 0 changed to leader at term 7746
+server 0 changed from leader to follower at term 7747
+server 0 changed to leader at term 24614
+server 1 changed from leader to follower at term 24615
+server 0 changed from leader to follower at term 24615
+server 1 changed to leader at term 25212
+server 1 changed from leader to follower at term 25213
+server 1 changed to leader at term 27272
+server 1 changed from leader to follower at term 27273
+server 0 changed from leader to follower at term 27273
+server 0 changed to leader at term 46825
+server 0 changed from leader to follower at term 46826
+server 0 changed to leader at term 50563
+server 1 changed to leader at term 116908
+server 1 changed from leader to follower at term 116909
+server 0 changed from leader to follower at term 116909
+server 0 changed to leader at term 122282
+server 0 changed from leader to follower at term 122283
+server 0 changed to leader at term 124938
+server 0 changed from leader to follower at term 124939
+server 1 changed to leader at term 129640
+server 1 changed from leader to follower at term 129641
+server 0 changed from leader to follower at term 129641
+server 0 changed to leader at term 129784
+server 0 changed from leader to follower at term 129785
+server 1 changed from leader to follower at term 129785
+```
 

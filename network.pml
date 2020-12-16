@@ -157,6 +157,12 @@ proctype Server(int serverID) {
                 skip /* everything is normal (and success should be true) */
             fi
         fi
+        /* TODO debug code */
+        if
+        ::  status == follower -> printf("server %d changed from leader to follower at term %d\n", serverID, currentTerm);
+        ::  else -> skip
+        fi
+        /* end debug code */
     ::  status == candidate ->
         if
         ::  true -> skip; /* decrease timer */
@@ -214,7 +220,11 @@ proctype Server(int serverID) {
             ::  msg_voteGranted == true ->
                 votedForMe++;
                 if
-                ::  votedForMe >= NUM_MAJOR -> status = leader;
+                ::  votedForMe >= NUM_MAJOR ->
+                    status = leader;
+                    /* TODO debug code */
+                    printf("server %d changed to leader at term %d\n", serverID, currentTerm);
+                    /* end debug code */
                 ::  else -> skip;
                 fi
             /* case: current server is outdated; convert to follower */
