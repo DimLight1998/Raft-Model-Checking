@@ -71,3 +71,15 @@ server 0 changed from leader to follower at term 129785
 server 1 changed from leader to follower at term 129785
 ```
 
+---
+
+### 消息的规范（更新）
+
+| 消息类型            | 参数 (int)            | 参数 (int)          | 参数 (bool)             | 参数 (bool)          |
+|---------------------|-----------------------|---------------------|-------------------------|----------------------|
+| appendEntryRequest  | 消息接收者 receiverID | 消息发送者 senderID | 是否需要更新 needUpdate | （不使用）           |
+| requestVoteRequest  | 消息接收者 receiverID | 消息发送者 senderID | 是否需要更新 needUpdate | （不使用）           |
+| appendEntryResponse | 消息接收者 receiverID | 消息发送者 senderID | 是否需要更新 needUpdate | 接收心跳包 success   |
+| requestVoteResponse | 消息接收者 receiverID | 消息发送者 senderID | 是否需要更新 needUpdate | 进行投票 voteGranted |
+
+
