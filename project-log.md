@@ -2,7 +2,7 @@
 
 ## Todolist
 
-- [ ] 解决发包阻塞的问题（目前使用 `-m`）
+(Nothing)
 
 ## 2020-12-11
 
@@ -82,4 +82,13 @@ server 1 changed from leader to follower at term 129785
 | appendEntryResponse | 消息接收者 receiverID | 消息发送者 senderID | 是否需要更新 needUpdate | 接收心跳包 success   |
 | requestVoteResponse | 消息接收者 receiverID | 消息发送者 senderID | 是否需要更新 needUpdate | 进行投票 voteGranted |
 
+## 2020-12-29
+
+可能还是需要用 NuSMV。Promela 和 SPIN 这一套似乎只能用来搞一些比较简单的协议，对于 Raft 没有办法。此外需要严格控制状态空间的大小：
+
+- 每个节点不再使用整数作为 `term`，只使用一个 bool 变量 `newest`。如果当前节点是最新的，则 `newest` 设置为真，否则为假。
+- 每个节点依旧会维护 `role` 和 `votedFor`。
+- **关于 buffer**: 每个节点
+
+见鬼，我已经在这个作业上花了这么久了？
 
