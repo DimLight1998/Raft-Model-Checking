@@ -1,0 +1,31 @@
+#!/bin/python
+
+import sys
+from subprocess import run
+from pathlib import Path
+
+if __name__ == "__main__":
+    input_file = sys.argv[1]
+    output_file = sys.argv[2]
+    lines = Path(input_file).read_text().split("\n")
+    intervals = []
+    for line_number, line in enumerate(lines):
+        if line.strip().startswith("⟨⟨⟨"):
+            start = line_number
+        elif line.strip().startswith("⟩⟩⟩"):
+            end = line_number
+            intervals.append((start, end, lines[start]))
+    intervals = intervals[: : -1]
+    for (start, end, line) in intervals:
+        indent = line.index("⟨⟨⟨")
+        op = line.strip().split("⟨⟨⟨")[1].strip()
+        stdin = '\n'.join(map(lambda l: l[indent:], lines[start + 1 : end]))
+        proc = run(op, shell=True, input=stdin.encode("utf-8"), capture_output=True)
+        if proc.returncode != 0:
+            print(proc.stderr.decode("utf-8"))
+            exit(1)
+        stdout = proc.stdout.decode("utf-8")
+        stdout = "\n".join(map(lambda l: " " * indent + l, stdout.split("\n")))
+        lines = lines[: start] + stdout.split("\n") + lines[end + 1 :]
+    Path(output_file).write_text("\n".join(lines))
+
