@@ -58,20 +58,14 @@ ASSIGN
 
   next(eventType) :=
     case
-      ⟨⟨⟨ python codegen.py
-      (
-        [
-          ⟨⟨⟨ python
-          lines = []
-          for i in range(⟨=numNode⟩):
-            lines.append(f'("node{i}.role = Candidate", ["VoteReq"]),')
-          for i in range(⟨=numNode⟩):
-            lines.append(f'("node{i}.role = Follower & node{i}.votedFor != -1", ["VoteRsp"]),')
-          print("\n".join(lines), end="")
-          ⟩⟩⟩ # meaningless, for correcting syntax hightlighting
-        ],
-        ["Noop", "Timeout"]
-      )
+      ⟨⟨⟨ python
+      numNode = ⟨=numNode⟩
+      candidateCases = "\n  " + ",\n  ".join([f"node{i}.role = Candidate" for i in range(numNode)]) + "\n"
+      followerCases = "\n  " + ",\n  ".join([f"node{i}.role = Follower & node{i}.votedFor != -1" for i in range(numNode)]) + "\n"
+      print(f"count({candidateCases}) = 0 & count({followerCases}) = 0 : {{Timeout, Noop}};")
+      print(f"count({candidateCases}) = 0 & count({followerCases}) > 0 : {{Timeout, Noop, VoteRsp}};")
+      print(f"count({candidateCases}) > 0 & count({followerCases}) = 0 : {{Timeout, Noop, VoteReq}};")
+      print(f"count({candidateCases}) > 0 & count({followerCases}) > 0 : {{Timeout, Noop, VoteReq, VoteRsp}};", end="")
       ⟩⟩⟩
     esac;
   next(eventSenderID) :=
