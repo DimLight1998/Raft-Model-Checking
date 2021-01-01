@@ -114,7 +114,7 @@ ASSIGN
       ⟨⟨⟨ python
       lines = []
       numNode = ⟨=numNode⟩
-      numMajor = int(numNode / 2) if numNode % 2 == 0 else int(numNode / 2) + 1
+      numMajor = int(numNode / 2) + 1
       for candidate in range(numNode):
         conds = [f"\n    node{voter}.votedFor = {candidate} & voteAcpt{voter} & isNewest{voter}" for voter in range(numNode)]
         lines.append(f"next(eventType) = VoteRsp & next(eventReceiverID) = {candidate} & count({','.join(conds)}\n  ) >= {numMajor}: TRUE;")
