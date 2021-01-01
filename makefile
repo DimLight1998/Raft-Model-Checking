@@ -8,7 +8,7 @@ int: play.smv
 	nusmv -int play.smv
 
 play.smv: play.template.smv
-	./gpp play.template.smv play.smv -DnumNode=3
+	./gpp play.template.smv play.smv -DnumNode=5
 
 clean:
 	rm play.smv

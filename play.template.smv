@@ -45,7 +45,7 @@ VAR
   lines = []
   for i in range(⟨=numNode⟩):
     lines.append(f"isNewest{i}: boolean;")
-  for i in range(⟨=numNode⟩):
+    lines.append(f"voteAcpt{i}: boolean;")
     lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority);")
   print("\n".join(lines), end="")
   ⟩⟩⟩
@@ -68,7 +68,7 @@ ASSIGN
           for i in range(⟨=numNode⟩):
             lines.append(f'("node{i}.role = Follower & node{i}.votedFor != -1", ["VoteRsp"]),')
           print("\n".join(lines), end="")
-          ⟩⟩⟩
+          ⟩⟩⟩ # meaningless, for correcting syntax hightlighting
         ],
         ["Noop", "Timeout"]
       )
@@ -122,7 +122,7 @@ ASSIGN
       numNode = ⟨=numNode⟩
       numMajor = int(numNode / 2) if numNode % 2 == 0 else int(numNode / 2) + 1
       for candidate in range(numNode):
-        conds = [f"\n    node{voter}.votedFor = {candidate} & isNewest{voter}" for voter in range(numNode)]
+        conds = [f"\n    node{voter}.votedFor = {candidate} & voteAcpt{voter} & isNewest{voter}" for voter in range(numNode)]
         lines.append(f"next(eventType) = VoteRsp & next(eventReceiverID) = {candidate} & count({','.join(conds)}\n  ) >= {numMajor}: TRUE;")
       print("\n".join(lines), end="")
       ⟩⟩⟩
@@ -167,12 +167,33 @@ ASSIGN
       print()
   ⟩⟩⟩
 
+  ⟨⟨⟨ python
+  print("\n".join([f"init(voteAcpt{i}) := FALSE;" for i in range(⟨=numNode⟩)]), end="")
+  ⟩⟩⟩
+
+  ⟨⟨⟨ python
+  for i in range(⟨=numNode⟩):
+    template = \
+  f"""
+  next(voteAcpt{i}) := case
+    next(eventType) = VoteRsp & next(eventSenderID = {i}) : TRUE;
+    next(node{i}.role = Candidate) : TRUE;
+    !isNewest{i} & next(isNewest{i}) : FALSE;
+    TRUE : voteAcpt{i};
+  esac;
+  """
+    print(template[1 : -1], end="")
+    if i != ⟨=numNode⟩ - 1:
+      print()
+  ⟩⟩⟩
+
+
 -- 几种事件都有可能发生
 CTLSPEC EF(eventType = Timeout)
 CTLSPEC EF(eventType = VoteReq)
 CTLSPEC EF(eventType = VoteRsp)
 -- 总是有节点处于最新的状态
-CTLSPEC AG(isNewest0 | isNewest1 | isNewest2)
+CTLSPEC AG(⟨!python -c "print(' | '.join([f'isNewest{i}' for i in range(⟨=numNode⟩)]))"⟩)
 -- 总是有节点可以赢得大部分选票
 CTLSPEC EF(oracleWinMajority)
 -- 每个节点都可能处于三种状态之一
@@ -189,8 +210,8 @@ CTLSPEC AG(node0.role = Candidate -> EX (eventType = VoteReq))
 CTLSPEC AG(node0.role = Follower & node0.votedFor != -1 -> (EX eventType = VoteRsp))
 -- 在第一个 leader 被选出来之前一定发生过 VoteReq
 CTLSPEC !E[eventType != VoteReq U node0.role = Leader]
--- TODO 在第一个 leader 被选出来之前一定发生过 VoteRsp
--- CTLSPEC !E[eventType != VoteRsp U node0.role = Leader]
+-- 在第一个 leader 被选出来之前一定发生过 VoteRsp（这个性质只有在系统节点数不小于 5 时才有意义）
+CTLSPEC !E[eventType != VoteRsp U node0.role = Leader]
 -- 有可能出现系统中多个节点处于 leader 状态的情况
 CTLSPEC EF(node0.role = Leader & node1.role = Leader)
 -- 如果当前存在一个处于最新任期的 leader，那么其他节点不可能立即变成 leader
