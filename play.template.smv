@@ -1,7 +1,7 @@
-MODULE node(nodeID, isNewest, eventType, eventArgA, eventArgB, eventArgU, oracleLeaderSet)
+MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleNewestSet, oracleLeaderSet)
 VAR
   role: {Follower, Candidate, Leader};
-  votedFor: -1 .. 2;
+  votedFor: -1 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
 ASSIGN
   init(role) := Follower;
   init(votedFor) := -1;
@@ -14,18 +14,18 @@ ASSIGN
         esac;
       next(eventType) = Timeout:
         case
-          next(eventArgA) = nodeID: Candidate;
-          next(eventArgA) != nodeID: role;
+          next(eventSenderID) = nodeID: Candidate;
+          next(eventSenderID) != nodeID: role;
         esac;
       next(eventType) = VoteReq:
         case
-          next(eventArgB) = nodeID & next(eventArgU) = 1: Follower;
+          next(eventReceiverID) = nodeID & next(oracleNewestSet): Follower;
           TRUE: role;
         esac;
       next(eventType) = VoteRsp:
         case
-          next(eventArgB) = nodeID & next(eventArgU) = 1: Follower;
-          next(eventArgB) = nodeID & next(eventArgU) = 0 & next(oracleLeaderSet): Leader;
+          next(eventReceiverID) = nodeID & next(oracleNewestSet): Follower;
+          next(eventReceiverID) = nodeID & next(oracleNewestSet) & next(oracleLeaderSet): Leader;
           TRUE: role;
         esac;
       TRUE: role;
@@ -33,7 +33,7 @@ ASSIGN
   next(votedFor) :=
     case
       role = Candidate: nodeID;
-      next(eventType) = VoteReq & next(eventArgB) = nodeID: next(eventArgA);
+      next(eventType) = VoteReq & next(eventReceiverID) = nodeID: next(eventSenderID);
       TRUE: votedFor;
     esac;
 
@@ -41,21 +41,22 @@ ASSIGN
 MODULE main
 VAR
   eventType: {Noop, Timeout, VoteReq, VoteRsp};
-  eventArgA: 0 .. 2;
-  eventArgB: 0 .. 2;
-  eventArgU: 0 .. 1;
+  eventSenderID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
+  eventReceiverID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
+  oracleNewestSet: boolean;
   oracleLeaderSet: boolean;
   ⟨⟨⟨ python
   lines = []
-  for i in range(3):
+  for i in range(⟨=numNode⟩):
     lines.append(f"isNewest{i}: boolean;")
-    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventArgA, eventArgB, eventArgU, oracleLeaderSet);")
+  for i in range(⟨=numNode⟩):
+    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleNewestSet, oracleLeaderSet);")
   print("\n".join(lines), end="")
   ⟩⟩⟩
 ASSIGN
   init(eventType) := Noop;
-  init(eventArgA) := 0;
-  init(eventArgB) := 0;
+  init(eventSenderID) := 0;
+  init(eventReceiverID) := 0;
   init(oracleLeaderSet) := FALSE;
 
   next(eventType) :=
@@ -63,131 +64,109 @@ ASSIGN
       ⟨⟨⟨ python codegen.py
       (
         [
-          ("node0.role = Candidate", ["VoteReq", "Timeout"]),
-          ("node1.role = Candidate", ["VoteReq", "Timeout"]),
-          ("node2.role = Candidate", ["VoteReq", "Timeout"]),
-          ("node0.role = Follower & node0.votedFor != -1", ["VoteRsp", "Timeout"]),
-          ("node1.role = Follower & node1.votedFor != -1", ["VoteRsp", "Timeout"]),
-          ("node2.role = Follower & node2.votedFor != -1", ["VoteRsp", "Timeout"]),
+          ⟨⟨⟨ python
+          lines = []
+          for i in range(⟨=numNode⟩):
+            lines.append(f'("node{i}.role = Candidate", ["VoteReq", "Timeout"]),')
+          for i in range(⟨=numNode⟩):
+            lines.append(f'("node{i}.role = Follower & node{i}.votedFor != -1", ["VoteRsp", "Timeout"]),')
+          print("\n".join(lines), end="")
+          ⟩⟩⟩
         ],
         ["Noop", "Timeout"]
       )
       ⟩⟩⟩
     esac;
-  next(eventArgA) :=
+  next(eventSenderID) :=
     case
-      next(eventType) = Timeout                          : {0, 1, 2};
-      next(eventType) = VoteReq & node0.role = Candidate : 0;
-      next(eventType) = VoteReq & node1.role = Candidate : 1;
-      next(eventType) = VoteReq & node2.role = Candidate : 2;
-      next(eventType) = VoteRsp & node0.votedFor != -1   : 0;
-      next(eventType) = VoteRsp & node1.votedFor != -1   : 1;
-      next(eventType) = VoteRsp & node2.votedFor != -1   : 2;
-      next(eventType) = Noop                             : 0;
+      ⟨⟨⟨ python
+      lines = []
+      for i in range(0, ⟨=numNode⟩):
+        lines.append(f"next(eventType) = VoteReq & node{i}.role = Candidate : {i};")
+      for i in range(0, ⟨=numNode⟩):
+        lines.append(f"next(eventType) = VoteRsp & node{i}.votedFor != -1   : {i};")
+      print("\n".join(lines), end="")
+      ⟩⟩⟩
+      next(eventType) = Timeout                          : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
       TRUE                                               : 0;
     esac;
-  next(eventArgB) :=
+  next(eventReceiverID) :=
     case
-      next(eventType) = Timeout                          : {0, 1, 2};
-      next(eventType) = VoteReq & node0.role = Candidate : {1, 2};
-      next(eventType) = VoteReq & node1.role = Candidate : {0, 2};
-      next(eventType) = VoteReq & node2.role = Candidate : {0, 1};
-      next(eventType) = VoteRsp & node0.votedFor != -1   : node0.votedFor;
-      next(eventType) = VoteRsp & node1.votedFor != -1   : node1.votedFor;
-      next(eventType) = VoteRsp & node2.votedFor != -1   : node2.votedFor;
+      ⟨⟨⟨ python
+      lines = []
+      numNode = ⟨=numNode⟩
+      lines += [f"next(eventType) = VoteReq & node{i}.role = Candidate : {{" + ", ".join(map(str, list(range(i + 1, numNode)) + list(range(i)))) + "};" for i in range(numNode)]
+      lines += [f"next(eventType) = VoteRsp & node{i}.votedFor != -1   : node{i}.votedFor;" for i in range(numNode)]
+      print("\n".join(lines), end="")
+      ⟩⟩⟩
       next(eventType) = Noop                             : 0;
+      next(eventType) = Timeout                          : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
       TRUE                                               : 0;
     esac;
-  next(eventArgU) :=
+  next(oracleNewestSet) :=
     case
-      next(eventType) = VoteReq & next(eventArgA) = 0 & next(eventArgB) = 1 & isNewest0 & !isNewest1 : 1;
-      next(eventType) = VoteReq & next(eventArgA) = 0 & next(eventArgB) = 2 & isNewest0 & !isNewest2 : 1;
-      next(eventType) = VoteReq & next(eventArgA) = 1 & next(eventArgB) = 2 & isNewest1 & !isNewest2 : 1;
-      next(eventType) = VoteReq & next(eventArgA) = 1 & next(eventArgB) = 0 & isNewest1 & !isNewest0 : 1;
-      next(eventType) = VoteReq & next(eventArgA) = 2 & next(eventArgB) = 0 & isNewest2 & !isNewest0 : 1;
-      next(eventType) = VoteReq & next(eventArgA) = 2 & next(eventArgB) = 1 & isNewest2 & !isNewest1 : 1;
-      TRUE : 0;
+      ⟨⟨⟨ python
+      lines = []
+      numNode = ⟨=numNode⟩
+      for i in range(numNode):
+        for j in range(numNode):
+          if i != j:
+            lines.append(f"next(eventType) = VoteReq & next(eventSenderID) = {i} & next(eventReceiverID) = {j} & isNewest{i} & !isNewest{j} : TRUE;")
+      print("\n".join(lines), end="")
+      ⟩⟩⟩
+      TRUE : FALSE;
     esac;
   next(oracleLeaderSet) :=
     case
-      next(eventType) = VoteRsp & next(eventArgA) = 0 & count(node0.votedFor = 0, node1.votedFor = 0, node2.votedFor = 0) > 1: TRUE;
-      next(eventType) = VoteRsp & next(eventArgA) = 1 & count(node0.votedFor = 1, node1.votedFor = 1, node2.votedFor = 1) > 1: TRUE;
-      next(eventType) = VoteRsp & next(eventArgA) = 2 & count(node0.votedFor = 2, node1.votedFor = 2, node2.votedFor = 2) > 1: TRUE;
+      ⟨⟨⟨ python
+      lines = []
+      numNode = ⟨=numNode⟩
+      numMajor = int(numNode / 2) if numNode % 2 == 0 else int(numNode / 2) + 1
+      for candidate in range(numNode):
+        conds = [f"node{voter}.votedFor = {candidate}" for voter in range(numNode)]
+        lines.append(f"next(eventType) = VoteRsp & next(eventSenderID) = {candidate} & count({', '.join(conds)}) >= {numMajor}: TRUE;")
+      print("\n".join(lines), end="")
+      ⟩⟩⟩
       TRUE : FALSE;
     esac;
 
-  init(isNewest0) := TRUE;
-  init(isNewest1) := TRUE;
-  init(isNewest2) := TRUE;
-  next(isNewest0) :=
+  ⟨⟨⟨ python
+  print("\n".join([f"init(isNewest{i}) := TRUE;" for i in range(⟨=numNode⟩)]), end="")
+  ⟩⟩⟩
+
+  ⟨⟨⟨ python
+  numNode = ⟨=numNode⟩
+  for i in range(numNode):
+    excluded = list(range(i + 1, numNode)) + list(range(i))
+    timeoutCases = "\n".join(map(lambda l: "  " * 4 + l, [f"next(eventSenderID) = {j} : isNewest{j} ? FALSE : isNewest{i};" for j in excluded]))
+    reqRspCases = "\n".join(map(lambda l: "  " * 4 + l, [f"next(eventReceiverID) = {i} & next(eventSenderID) = {j} & isNewest{j}: TRUE;" for j in excluded]))
+    template = \
+  f"""
+  next(isNewest{i}) :=
     case
       next(eventType) = Timeout:
         case
-          next(eventArgA) = 0 & isNewest0  : TRUE;
-          next(eventArgA) = 0 & !isNewest0 : {TRUE, FALSE};
-          next(eventArgA) = 1              : isNewest1 ? FALSE : isNewest0;
-          next(eventArgA) = 2              : isNewest2 ? FALSE : isNewest0;
+          next(eventSenderID) = {i} &  isNewest{i} : TRUE;
+          next(eventSenderID) = {i} & !isNewest{i} : {{TRUE, FALSE}};
+  {timeoutCases}
         esac;
       next(eventType) = VoteReq:
         case
-          next(eventArgB) = 0 & next(eventArgA) = 1 & isNewest1: TRUE;
-          next(eventArgB) = 0 & next(eventArgA) = 2 & isNewest2: TRUE;
-          TRUE: isNewest0;
+  {reqRspCases}
+          TRUE: isNewest{i};
         esac;
       next(eventType) = VoteRsp:
         case
-          next(eventArgB) = 0 & next(eventArgA) = 1 & isNewest1: TRUE;
-          next(eventArgB) = 0 & next(eventArgA) = 2 & isNewest2: TRUE;
-          TRUE: isNewest0;
+  {reqRspCases}
+          TRUE: isNewest{i};
         esac;
       next(eventType) = Noop: TRUE;
     esac;
-  next(isNewest1) :=
-    case
-      next(eventType) = Timeout:
-        case
-          next(eventArgA) = 1 & isNewest1  : TRUE;
-          next(eventArgA) = 1 & !isNewest1 : {TRUE, FALSE};
-          next(eventArgA) = 2              : isNewest2 ? FALSE : isNewest1;
-          next(eventArgA) = 0              : isNewest0 ? FALSE : isNewest1;
-        esac;
-      next(eventType) = VoteReq:
-        case
-          next(eventArgB) = 1 & next(eventArgA) = 2 & isNewest2: TRUE;
-          next(eventArgB) = 1 & next(eventArgA) = 0 & isNewest0: TRUE;
-          TRUE: isNewest1;
-        esac;
-      next(eventType) = VoteRsp:
-        case
-          next(eventArgB) = 1 & next(eventArgA) = 2 & isNewest2: TRUE;
-          next(eventArgB) = 1 & next(eventArgA) = 0 & isNewest0: TRUE;
-          TRUE: isNewest1;
-        esac;
-      next(eventType) = Noop: TRUE;
-    esac;
-  next(isNewest2) :=
-    case
-      next(eventType) = Timeout:
-        case
-          next(eventArgA) = 2 & isNewest2  : TRUE;
-          next(eventArgA) = 2 & !isNewest2 : {TRUE, FALSE};
-          next(eventArgA) = 0              : isNewest0 ? FALSE : isNewest2;
-          next(eventArgA) = 1              : isNewest1 ? FALSE : isNewest2;
-        esac;
-      next(eventType) = VoteReq:
-        case
-          next(eventArgB) = 2 & next(eventArgA) = 0 & isNewest0: TRUE;
-          next(eventArgB) = 2 & next(eventArgA) = 1 & isNewest1: TRUE;
-          TRUE: isNewest2;
-        esac;
-      next(eventType) = VoteRsp:
-        case
-          next(eventArgB) = 2 & next(eventArgA) = 0 & isNewest0: TRUE;
-          next(eventArgB) = 2 & next(eventArgA) = 1 & isNewest1: TRUE;
-          TRUE: isNewest2;
-        esac;
-      next(eventType) = Noop: TRUE;
-    esac;
+  """
+    print(template[1 : -1], end="")
+    if i != numNode - 1:
+      print()
+  ⟩⟩⟩
 
 CTLSPEC !AG(isNewest0 & isNewest1 & node0.role = Leader & node1.role = Leader)
 -- CTLSPEC AG((eventType != Timeout))

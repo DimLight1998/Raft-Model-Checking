@@ -3,11 +3,45 @@
 import sys
 from subprocess import run
 from pathlib import Path
+import re
 
-if __name__ == "__main__":
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
-    lines = Path(input_file).read_text().split("\n")
+def process_inline_def(lines, args):
+    replace_dict = {}
+    for arg in args:
+        if arg.startswith("-D"):
+            index = arg.index("=")
+            macro = arg[2 : index]
+            content = arg[index + 1 :]
+            replace_dict[macro] = content
+    replaced_lines = []
+    for line in lines:
+        matches = re.finditer(r"⟨=(.*?)⟩", line)
+        matches = sorted(list(matches), key=lambda m: m.span()[0], reverse=True)
+        for match in matches:
+            replace = replace_dict[match.groups()[0]]
+            line = line[: match.span()[0]] + replace + line[match.span()[1] :]
+        replaced_lines.append(line)
+    return replaced_lines
+
+def process_inline_shell(lines, args):
+    replaced_lines = []
+    for line in lines:
+        matches = re.finditer(r"⟨!(.*?)⟩", line)
+        matches = sorted(list(matches), key=lambda m: m.span()[0], reverse=True)
+        for match in matches:
+            shell_output = run(match.groups()[0], shell=True, capture_output=True)
+            if len(shell_output.split("\n")) == 1:
+                replace = shell_output
+            elif len(shell_output.split("\n")) == 2 and shell_output.split("\n")[1] == "":
+                replace = shell_output.split("\n")[0]
+            else:
+                print("inline shell should evaluate to one line (or with one trailing linebreak)")
+                exit(1)
+            line = line[: match.span()[0]] + replace + line[match.span()[1] :]
+        replaced_lines.append(line)
+    return replaced_lines
+
+def _process_block(lines, args):
     intervals = []
     for line_number, line in enumerate(lines):
         if line.strip().startswith("⟨⟨⟨"):
@@ -25,7 +59,108 @@ if __name__ == "__main__":
             print(proc.stderr.decode("utf-8"))
             exit(1)
         stdout = proc.stdout.decode("utf-8")
-        stdout = "\n".join(map(lambda l: " " * indent + l, stdout.split("\n")))
-        lines = lines[: start] + stdout.split("\n") + lines[end + 1 :]
+        stdout = list(map(lambda l: " " * indent + l, stdout.split("\n")))
+        lines = lines[: start] + stdout + lines[end + 1 :]
+    return lines
+
+def build_macro_dict(args):
+    macro_dict = {}
+    for arg in args:
+        if arg.startswith("-D"):
+            index = arg.index("=")
+            macro = arg[2 : index]
+            content = arg[index + 1 :]
+            macro_dict[macro] = content
+    return macro_dict
+
+# "⟨=hello⟩", {"hello": "world"} -> "world"
+def replace_macro(macro_dict, string):
+    macro = string[2 : -1]
+    print(f"expanding {string} to {macro_dict[macro]} ...")
+    return macro_dict[macro]
+
+# "⟨!echo $((1 + 1))⟩" -> "2", automatically remove trailing linebreak
+def replace_shell(string):
+    shell_cmd = string[2 : -1]
+    print(f"running inline command {string}")
+    proc = run(shell_cmd, shell=True, capture_output=True)
+    if proc.returncode != 0:
+        print(f"when processing: {string}")
+        print(proc.stderr.decode())
+        exit(1)
+    shell_output = proc.stdout.decode()
+    if len(shell_output.split("\n")) == 1:
+        return shell_output
+    elif len(shell_output.split("\n")) == 2 and shell_output.split("\n")[1] == "":
+        return shell_output.split("\n")[0]
+    else:
+        print("inline shell should evaluate to one line (or with one trailing linebreak)")
+        exit(1)
+
+def process_inline(lines, args):
+    replaced_lines = []
+    macro_dict = build_macro_dict(args)
+    for line in lines:
+        if line.count("⟨") != line.count("⟩"):
+            replaced_lines.append(line)
+            continue
+        criterion_start = lambda e: e == "⟨"
+        criterion_stop = lambda e: e == "⟩"
+        def replace_generator(substring):
+            if substring[1] == "=":
+                return list(replace_macro(macro_dict, "".join(substring)))
+            elif substring[1] == "!":
+                return list(replace_shell("".join(substring)))
+            else:
+                print(f'invalid token "{"".join(substring)}"')
+                exit(1)
+        line = "".join(tree_replace(criterion_start, criterion_stop, replace_generator, list(line)))
+        replaced_lines.append(line)
+    return replaced_lines
+
+def process_block(lines, args):
+    criterion_start = lambda l: l.strip().startswith("⟨⟨⟨")
+    criterion_stop = lambda l: l.strip().startswith("⟩⟩⟩")
+    def replace_generator(subcontent):
+        first_line = subcontent[0]
+        indent = first_line.index("⟨⟨⟨")
+        shell_cmd = first_line.strip().split("⟨⟨⟨")[1].strip()
+        print(f"running block command {shell_cmd} ...");
+        stdin = '\n'.join(map(lambda l: l[indent:], subcontent[1 : -1]))
+        proc = run(shell_cmd, shell=True, input=stdin.encode(), capture_output=True)
+        if proc.returncode != 0:
+            print(proc.stderr.decode())
+            exit(1)
+        stdout = proc.stdout.decode()
+        stdout = list(map(lambda l: " " * indent + l, stdout.split("\n")))
+        return stdout
+    return tree_replace(criterion_start, criterion_stop, replace_generator, lines)
+
+def tree_replace(criterion_start, criterion_stop, replace_generator, elements):
+    start_stack = []
+    index = 0
+    while index < len(elements):
+        element = elements[index]
+        if criterion_start(element):
+            start_stack.append(index)
+            index += 1
+        elif criterion_stop(element):
+            index_start = start_stack.pop()
+            index_stop = index
+            expanding = elements[index_start : index_stop + 1]
+            replace = replace_generator(expanding)
+            elements = elements[: index_start] + replace + elements[index_stop + 1 :]
+            index = index_start + len(replace)
+        else:
+            index += 1
+    return elements
+
+
+if __name__ == "__main__":
+    input_file = sys.argv[1]
+    output_file = sys.argv[2]
+    lines = Path(input_file).read_text().split("\n")
+    lines = process_inline(lines, sys.argv)
+    lines = process_block(lines, sys.argv)
     Path(output_file).write_text("\n".join(lines))
 
