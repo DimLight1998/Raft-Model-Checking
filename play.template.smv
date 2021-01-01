@@ -1,4 +1,4 @@
-MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleLeaderSet)
+MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority)
 VAR
   role: {Follower, Candidate, Leader};
   votedFor: -1 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
@@ -22,15 +22,14 @@ ASSIGN
       next(eventType) = VoteRsp:
         case
           next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): Follower;
-          next(eventReceiverID) = nodeID & next(oracleSenderIsNewer) & next(oracleLeaderSet): Leader;
+          next(eventReceiverID) = nodeID & next(oracleWinMajority): Leader;
           TRUE: role;
         esac;
-      TRUE: role;
     esac;
   next(votedFor) :=
     case
-      role = Candidate: nodeID;
-      next(eventType) = VoteReq & next(eventReceiverID) = nodeID: next(eventSenderID);
+      next(role) = Candidate: nodeID;
+      next(eventType) = VoteReq & next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): next(eventSenderID);
       TRUE: votedFor;
     esac;
 
@@ -41,20 +40,21 @@ VAR
   eventSenderID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   eventReceiverID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   oracleSenderIsNewer: boolean;
-  oracleLeaderSet: boolean;
+  oracleWinMajority: boolean;
   ⟨⟨⟨ python
   lines = []
   for i in range(⟨=numNode⟩):
     lines.append(f"isNewest{i}: boolean;")
   for i in range(⟨=numNode⟩):
-    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleLeaderSet);")
+    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority);")
   print("\n".join(lines), end="")
   ⟩⟩⟩
 ASSIGN
   init(eventType) := Noop;
   init(eventSenderID) := 0;
   init(eventReceiverID) := 0;
-  init(oracleLeaderSet) := FALSE;
+  init(oracleSenderIsNewer) := FALSE;
+  init(oracleWinMajority) := FALSE;
 
   next(eventType) :=
     case
@@ -64,9 +64,9 @@ ASSIGN
           ⟨⟨⟨ python
           lines = []
           for i in range(⟨=numNode⟩):
-            lines.append(f'("node{i}.role = Candidate", ["VoteReq", "Timeout"]),')
+            lines.append(f'("node{i}.role = Candidate", ["VoteReq"]),')
           for i in range(⟨=numNode⟩):
-            lines.append(f'("node{i}.role = Follower & node{i}.votedFor != -1", ["VoteRsp", "Timeout"]),')
+            lines.append(f'("node{i}.role = Follower & node{i}.votedFor != -1", ["VoteRsp"]),')
           print("\n".join(lines), end="")
           ⟩⟩⟩
         ],
@@ -81,11 +81,12 @@ ASSIGN
       for i in range(0, ⟨=numNode⟩):
         lines.append(f"next(eventType) = VoteReq & node{i}.role = Candidate : {i};")
       for i in range(0, ⟨=numNode⟩):
-        lines.append(f"next(eventType) = VoteRsp & node{i}.votedFor != -1   : {i};")
+        lines.append(f"next(eventType) = VoteRsp & node{i}.role = Follower & node{i}.votedFor != -1 : {i};")
       print("\n".join(lines), end="")
       ⟩⟩⟩
-      next(eventType) = Timeout                          : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
-      TRUE                                               : 0;
+      next(eventType) = Timeout : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
+      next(eventType) = Noop    : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
+      TRUE                      : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
     esac;
   next(eventReceiverID) :=
     case
@@ -93,12 +94,12 @@ ASSIGN
       lines = []
       numNode = ⟨=numNode⟩
       lines += [f"next(eventType) = VoteReq & node{i}.role = Candidate : {{" + ", ".join(map(str, list(range(i + 1, numNode)) + list(range(i)))) + "};" for i in range(numNode)]
-      lines += [f"next(eventType) = VoteRsp & node{i}.votedFor != -1   : node{i}.votedFor;" for i in range(numNode)]
+      lines += [f"next(eventType) = VoteRsp & node{i}.role = Follower & node{i}.votedFor != -1 : node{i}.votedFor;" for i in range(numNode)]
       print("\n".join(lines), end="")
       ⟩⟩⟩
-      next(eventType) = Noop                             : 0;
-      next(eventType) = Timeout                          : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
-      TRUE                                               : 0;
+      next(eventType) = Timeout : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
+      next(eventType) = Noop    : 0;
+      TRUE                      : 0;
     esac;
   next(oracleSenderIsNewer) :=
     case
@@ -109,19 +110,20 @@ ASSIGN
         for j in range(numNode):
           if i != j:
             lines.append(f"next(eventType) = VoteReq & next(eventSenderID) = {i} & next(eventReceiverID) = {j} & isNewest{i} & !isNewest{j} : TRUE;")
+            lines.append(f"next(eventType) = VoteRsp & next(eventSenderID) = {i} & next(eventReceiverID) = {j} & isNewest{i} & !isNewest{j} : TRUE;")
       print("\n".join(lines), end="")
       ⟩⟩⟩
       TRUE : FALSE;
     esac;
-  next(oracleLeaderSet) :=
+  next(oracleWinMajority) :=
     case
       ⟨⟨⟨ python
       lines = []
       numNode = ⟨=numNode⟩
       numMajor = int(numNode / 2) if numNode % 2 == 0 else int(numNode / 2) + 1
       for candidate in range(numNode):
-        conds = [f"node{voter}.votedFor = {candidate}" for voter in range(numNode)]
-        lines.append(f"next(eventType) = VoteRsp & next(eventSenderID) = {candidate} & count({', '.join(conds)}) >= {numMajor}: TRUE;")
+        conds = [f"\n    node{voter}.votedFor = {candidate} & isNewest{voter}" for voter in range(numNode)]
+        lines.append(f"next(eventType) = VoteRsp & next(eventReceiverID) = {candidate} & count({','.join(conds)}\n  ) >= {numMajor}: TRUE;")
       print("\n".join(lines), end="")
       ⟩⟩⟩
       TRUE : FALSE;
@@ -157,7 +159,7 @@ ASSIGN
   {reqRspCases}
           TRUE: isNewest{i};
         esac;
-      next(eventType) = Noop: TRUE;
+      next(eventType) = Noop: isNewest{i};
     esac;
   """
     print(template[1 : -1], end="")
@@ -165,17 +167,34 @@ ASSIGN
       print()
   ⟩⟩⟩
 
+-- 几种事件都有可能发生
+CTLSPEC EF(eventType = Timeout)
+CTLSPEC EF(eventType = VoteReq)
+CTLSPEC EF(eventType = VoteRsp)
+-- 总是有节点处于最新的状态
+CTLSPEC AG(isNewest0 | isNewest1 | isNewest2)
+-- 总是有节点可以赢得大部分选票
+CTLSPEC EF(oracleWinMajority)
+-- 每个节点都可能处于三种状态之一
+CTLSPEC EF(node0.role = Follower);
+CTLSPEC EF(node0.role = Candidate);
+CTLSPEC EF(node0.role = Leader);
+-- 每个节点都可以给自己或其他某个节点投票
+CTLSPEC EF(node0.votedFor = -1)
+CTLSPEC EF(node0.votedFor = 0)
+CTLSPEC EF(node0.votedFor = 1)
+-- 一个 candidate 总是可以立即发起投票请求
+CTLSPEC AG(node0.role = Candidate -> EX (eventType = VoteReq))
+-- 一个已经投票的 follower 总是可以立即发送投票响应
+CTLSPEC AG(node0.role = Follower & node0.votedFor != -1 -> (EX eventType = VoteRsp))
+-- 在第一个 leader 被选出来之前一定发生过 VoteReq
+CTLSPEC !E[eventType != VoteReq U node0.role = Leader]
+-- TODO 在第一个 leader 被选出来之前一定发生过 VoteRsp
+-- CTLSPEC !E[eventType != VoteRsp U node0.role = Leader]
+-- 有可能出现系统中多个节点处于 leader 状态的情况
+CTLSPEC EF(node0.role = Leader & node1.role = Leader)
+-- 如果当前存在一个处于最新任期的 leader，那么其他节点不可能立即变成 leader
+CTLSPEC AG(node0.role = Leader & isNewest0 & node1.role != Leader -> AX node1.role != Leader)
+-- 弱化的 election safety 属性：不可能有两个同时都是处于最新任期的 leader
 CTLSPEC !AG(isNewest0 & isNewest1 & node0.role = Leader & node1.role = Leader)
--- CTLSPEC AG((eventType != Timeout))
--- CTLSPEC AG(eventType != VoteReq)
--- CTLSPEC !EF(eventType = VoteRsp)
--- CTLSPEC AG(node0.role = Follower & node0.votedFor != -1 -> !(EX eventType = VoteRsp))
--- CTLSPEC AG(node0.votedFor = -1)
--- CTLSPEC !EF(node0.votedFor = 1 & node1.votedFor = 1 & node2.votedFor = 1)
--- CTLSPEC !EF(count(node0.votedFor = 1, node1.votedFor = 1, node2.votedFor = 1) > 1)
--- CTLSPEC AG(node0.votedFor != 0)
--- CTLSPEC AG(node0.votedFor != 1)
--- CTLSPEC AG(node0.votedFor != 0)
--- CTLSPEC AG(node0.role != Leader);
--- SPEC AG(isNewest0 | isNewest1 | isNewest2)
 

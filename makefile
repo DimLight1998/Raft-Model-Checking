@@ -1,8 +1,14 @@
 SHELL=/bin/zsh
 
-run:
+run: play.smv
+	nusmv play.smv \
+		| colout true green | colout false red
+
+int: play.smv
+	nusmv -int play.smv
+
+play.smv: play.template.smv
 	./gpp play.template.smv play.smv -DnumNode=3
-	nusmv play.smv
 
 clean:
 	rm play.smv
