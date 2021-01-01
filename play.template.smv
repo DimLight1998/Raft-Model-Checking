@@ -1,4 +1,4 @@
-MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleNewestSet, oracleLeaderSet)
+MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleLeaderSet)
 VAR
   role: {Follower, Candidate, Leader};
   votedFor: -1 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
@@ -8,10 +8,7 @@ ASSIGN
 
   next(role) :=
     case
-      next(eventType) = Noop:
-        case
-          TRUE: role;
-        esac;
+      next(eventType) = Noop: role;
       next(eventType) = Timeout:
         case
           next(eventSenderID) = nodeID: Candidate;
@@ -19,13 +16,13 @@ ASSIGN
         esac;
       next(eventType) = VoteReq:
         case
-          next(eventReceiverID) = nodeID & next(oracleNewestSet): Follower;
+          next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): Follower;
           TRUE: role;
         esac;
       next(eventType) = VoteRsp:
         case
-          next(eventReceiverID) = nodeID & next(oracleNewestSet): Follower;
-          next(eventReceiverID) = nodeID & next(oracleNewestSet) & next(oracleLeaderSet): Leader;
+          next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): Follower;
+          next(eventReceiverID) = nodeID & next(oracleSenderIsNewer) & next(oracleLeaderSet): Leader;
           TRUE: role;
         esac;
       TRUE: role;
@@ -43,14 +40,14 @@ VAR
   eventType: {Noop, Timeout, VoteReq, VoteRsp};
   eventSenderID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   eventReceiverID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
-  oracleNewestSet: boolean;
+  oracleSenderIsNewer: boolean;
   oracleLeaderSet: boolean;
   ⟨⟨⟨ python
   lines = []
   for i in range(⟨=numNode⟩):
     lines.append(f"isNewest{i}: boolean;")
   for i in range(⟨=numNode⟩):
-    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleNewestSet, oracleLeaderSet);")
+    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleLeaderSet);")
   print("\n".join(lines), end="")
   ⟩⟩⟩
 ASSIGN
@@ -103,7 +100,7 @@ ASSIGN
       next(eventType) = Timeout                          : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
       TRUE                                               : 0;
     esac;
-  next(oracleNewestSet) :=
+  next(oracleSenderIsNewer) :=
     case
       ⟨⟨⟨ python
       lines = []
