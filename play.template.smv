@@ -114,7 +114,7 @@ ASSIGN
       ⟨⟨⟨ python
       lines = []
       numNode = ⟨=numNode⟩
-      numMajor = int(numNode / 2) if numNode % 2 == 0 else int(numNode / 2) + 1
+      numMajor = int(numNode / 2) + 1
       for candidate in range(numNode):
         conds = [f"\n    node{voter}.votedFor = {candidate} & voteAcpt{voter} & isNewest{voter}" for voter in range(numNode)]
         lines.append(f"next(eventType) = VoteRsp & next(eventReceiverID) = {candidate} & count({','.join(conds)}\n  ) >= {numMajor}: TRUE;")
@@ -212,4 +212,6 @@ CTLSPEC EF(node0.role = Leader & node1.role = Leader)
 CTLSPEC AG(node0.role = Leader & isNewest0 & node1.role != Leader -> AX node1.role != Leader)
 -- 弱化的 election safety 属性：不可能有两个同时都是处于最新任期的 leader
 CTLSPEC !AG(isNewest0 & isNewest1 & node0.role = Leader & node1.role = Leader)
+-- 弱化的 election safety 属性：不可能有两个节点同时被选为 leader
+CTLSPEC !AG(node0.role != Leader & node1.role != Leader & EX (node0.role = Leader & node1.role = Leader))
 
