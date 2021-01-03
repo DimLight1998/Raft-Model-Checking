@@ -29,8 +29,9 @@ ASSIGN
           next(eventReceiverID) = nodeID & next(oracleWinMajority): Leader;
           TRUE: role;
         esac;
-      next(eventType) = AppendEReq &  next(oracleSenderIsNewer): Follower;
-      next(eventType) = AppendEReq & !next(oracleSenderIsNewer): role;
+      next(eventType) = AppendEReq & next(eventReceiverID) = nodeID &  next(oracleSenderIsNewer): Follower;
+      next(eventType) = AppendEReq & next(eventReceiverID) = nodeID & !next(oracleSenderIsNewer): role;
+      next(eventType) = AppendEReq & next(eventReceiverID) != nodeID: role;
     esac;
   next(votedFor) :=
     case
@@ -40,8 +41,8 @@ ASSIGN
     esac;
   next(log) :=
     case
-      next(eventType = ClientReq)  & next(eventReceiverID) = nodeID & role = Leader : oracleLogContent;
-      next(eventType = AppendEReq) & next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): oracleLogContent;
+      next(eventType = ClientReq)  & next(eventReceiverID) = nodeID & role = Leader : next(oracleLogContent);
+      next(eventType = AppendEReq) & next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): next(oracleLogContent);
       TRUE: log;
     esac;
   next(logModification) :=
@@ -61,6 +62,7 @@ VAR
   oracleSenderIsNewer: boolean;
   oracleWinMajority: boolean;
   oracleLogContent: {LastFoo, LastBar};
+  oracleLastCommittedLogContent: {LastFoo, LastBar, LogEmpty};
   ⟨⟨⟨ python
   lines = []
   for i in range(⟨=numNode⟩):
@@ -77,6 +79,7 @@ ASSIGN
   init(oracleSenderIsNewer) := FALSE;
   init(oracleWinMajority) := FALSE;
   init(oracleLogContent) := LastFoo;
+  init(oracleLastCommittedLogContent) := LogEmpty;
 
   next(eventType) :=
     case
@@ -168,6 +171,17 @@ ASSIGN
       ⟩⟩⟩
       TRUE: oracleLogContent;
     esac;
+  next(oracleLastCommittedLogContent) :=
+    case
+      ⟨⟨⟨ python
+      numNode = ⟨=numNode⟩
+      numMajor = int(numNode / 2) + 1
+      upToDateCases = "\n  " + ",\n  ".join([f"logUpToDate{i}"  for i in range(numNode)]) + "\n"
+      for i in range(numNode):
+        print(f"count({upToDateCases}) >= {numMajor} & logUpToDate{i}: node{i}.log;", end="\n" if i < numNode - 1 else "")
+      ⟩⟩⟩
+      TRUE: oracleLastCommittedLogContent;
+    esac;
 
   ⟨⟨⟨ python
   print("\n".join([f"init(isNewest{i}) := TRUE;" for i in range(⟨=numNode⟩)]), end="")
@@ -237,8 +251,8 @@ ASSIGN
     template = \
   f"""
   next(logUpToDate{i}) := case
-    next(eventType) = AppendEReq & next(eventReceiverID) = {i} & node{i}.logModification = LogAppend : TRUE;
-    next(eventType) = ClientReq & next(eventReceiverID) = {i} & node{i}.role = Leader: TRUE;
+    next(eventType) = AppendEReq & next(eventReceiverID) = {i} & logUpToDate{i} & next(node{i}.logModification) = LogAppend : TRUE;
+    next(eventType) = ClientReq & next(eventReceiverID) = {i} & next(node{i}.role = Leader): TRUE;
     next(eventType) = ClientReq : FALSE;
     TRUE : logUpToDate{i};
   esac;
@@ -300,3 +314,4 @@ CTLSPEC EF(logUpToDate0)
 CTLSPEC EF(!logUpToDate0)
 CTLSPEC AG(logUpToDate0 & logUpToDate1 -> node0.log = node1.log)
 
+CTLSPEC AG(node0.role != Leader -> AX(node0.role = Leader -> node0.log = oracleLastCommittedLogContent))
