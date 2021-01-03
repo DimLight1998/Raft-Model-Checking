@@ -188,6 +188,8 @@ CTLSPEC EF(eventType = VoteReq)
 CTLSPEC EF(eventType = VoteRsp)
 -- 总是有节点处于最新的状态
 CTLSPEC AG(⟨!python -c "print(' | '.join([f'isNewest{i}' for i in range(⟨=numNode⟩)]))"⟩)
+-- Raft 协议可能因为一致随机撞车导致始终没有 leader
+CTLSPEC EG(⟨!python -c "print(' & '.join([f'node{i}.role != Leader' for i in range(⟨=numNode⟩)]))"⟩)
 -- 总是有节点可以赢得大部分选票
 CTLSPEC EF(oracleWinMajority)
 -- 每个节点都可能处于三种状态之一
