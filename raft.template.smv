@@ -29,8 +29,8 @@ ASSIGN
           next(eventReceiverID) = nodeID & next(oracleWinMajority): Leader;
           TRUE: role;
         esac;
-      next(eventType) in {AppendEReq, AppendERsp} &  next(oracleSenderIsNewer): Follower;
-      next(eventType) in {AppendEReq, AppendERsp} & !next(oracleSenderIsNewer): role;
+      next(eventType) = AppendEReq &  next(oracleSenderIsNewer): Follower;
+      next(eventType) = AppendEReq & !next(oracleSenderIsNewer): role;
     esac;
   next(votedFor) :=
     case
@@ -55,7 +55,7 @@ ASSIGN
 
 MODULE main
 VAR
-  eventType: {Noop, Timeout, VoteReq, VoteRsp, ClientReq, AppendEReq, AppendERsp};
+  eventType: {Noop, Timeout, VoteReq, VoteRsp, ClientReq, AppendEReq};
   eventSenderID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   eventReceiverID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   oracleSenderIsNewer: boolean;
@@ -191,7 +191,7 @@ ASSIGN
           next(eventSenderID) = {i} & !isNewest{i} : {{TRUE, FALSE}};
   {timeoutCases}
         esac;
-      next(eventType) in {{VoteReq, VoteRsp, AppendEReq, AppendERsp}}:
+      next(eventType) in {{VoteReq, VoteRsp, AppendEReq}}:
         case
   {reqRspCases}
           TRUE: isNewest{i};
@@ -257,7 +257,6 @@ CTLSPEC EF(eventType = VoteReq)
 CTLSPEC EF(eventType = VoteRsp)
 CTLSPEC EF(eventType = ClientReq)
 CTLSPEC EF(eventType = AppendEReq)
--- TODO CTLSPEC EF(eventType = AppendERsp)
 -- 总是有节点处于最新的状态
 CTLSPEC AG(⟨!python -c "print(' | '.join([f'isNewest{i}' for i in range(⟨=numNode⟩)]))"⟩)
 -- Raft 协议可能因为一致随机撞车导致始终没有 leader
