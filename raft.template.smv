@@ -1,14 +1,18 @@
-MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority)
+MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority, oracleLogContent)
 VAR
   role: {Follower, Candidate, Leader};
   votedFor: -1 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
+  log: {LogEmpty, LastFoo, LastBar};
+  logModification: {LogAppend, LogChange, LogNoMod};
 ASSIGN
   init(role) := Follower;
   init(votedFor) := -1;
+  init(log) := LogEmpty;
+  init(logModification) := LogNoMod;
 
   next(role) :=
     case
-      next(eventType) = Noop: role;
+      next(eventType) in {Noop, ClientReq}: role;
       next(eventType) = Timeout:
         case
           next(eventSenderID) = nodeID: Candidate;
@@ -25,6 +29,8 @@ ASSIGN
           next(eventReceiverID) = nodeID & next(oracleWinMajority): Leader;
           TRUE: role;
         esac;
+      next(eventType) in {AppendEReq, AppendERsp} &  next(oracleSenderIsNewer): Follower;
+      next(eventType) in {AppendEReq, AppendERsp} & !next(oracleSenderIsNewer): role;
     esac;
   next(votedFor) :=
     case
@@ -32,21 +38,35 @@ ASSIGN
       next(eventType) = VoteReq & next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): next(eventSenderID);
       TRUE: votedFor;
     esac;
+  next(log) :=
+    case
+      next(eventType = ClientReq)  & next(eventReceiverID) = nodeID & role = Leader : oracleLogContent;
+      next(eventType = AppendEReq) & next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): oracleLogContent;
+      TRUE: log;
+    esac;
+  next(logModification) :=
+    case
+      next(eventType = ClientReq)  & next(eventReceiverID) = nodeID & role = Leader : LogAppend;
+      next(eventType = AppendEReq) & next(eventReceiverID) = nodeID &  next(oracleSenderIsNewer): {LogAppend, LogChange};
+      next(eventType = AppendEReq) & next(eventReceiverID) = nodeID & !next(oracleSenderIsNewer): LogNoMod;
+      TRUE: LogNoMod;
+    esac;
 
 
 MODULE main
 VAR
-  eventType: {Noop, Timeout, VoteReq, VoteRsp};
+  eventType: {Noop, Timeout, VoteReq, VoteRsp, ClientReq, AppendEReq, AppendERsp};
   eventSenderID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   eventReceiverID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   oracleSenderIsNewer: boolean;
   oracleWinMajority: boolean;
+  oracleLogContent: {LastFoo, LastBar};
   ⟨⟨⟨ python
   lines = []
   for i in range(⟨=numNode⟩):
     lines.append(f"isNewest{i}: boolean;")
     lines.append(f"voteAcpt{i}: boolean;")
-    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority);")
+    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority, oracleLogContent);")
   print("\n".join(lines), end="")
   ⟩⟩⟩
 ASSIGN
@@ -55,27 +75,36 @@ ASSIGN
   init(eventReceiverID) := 0;
   init(oracleSenderIsNewer) := FALSE;
   init(oracleWinMajority) := FALSE;
+  init(oracleLogContent) := LastFoo;
 
   next(eventType) :=
     case
       ⟨⟨⟨ python
       numNode = ⟨=numNode⟩
-      candidateCases = "\n  " + ",\n  ".join([f"node{i}.role = Candidate" for i in range(numNode)]) + "\n"
-      followerCases = "\n  " + ",\n  ".join([f"node{i}.role = Follower & node{i}.votedFor != -1" for i in range(numNode)]) + "\n"
-      print(f"count({candidateCases}) = 0 & count({followerCases}) = 0 : {{Timeout, Noop}};")
-      print(f"count({candidateCases}) = 0 & count({followerCases}) > 0 : {{Timeout, Noop, VoteRsp}};")
-      print(f"count({candidateCases}) > 0 & count({followerCases}) = 0 : {{Timeout, Noop, VoteReq}};")
-      print(f"count({candidateCases}) > 0 & count({followerCases}) > 0 : {{Timeout, Noop, VoteReq, VoteRsp}};", end="")
+      leaderCases    = "\n  " + ",\n  ".join([f"node{i}.role = Leader & node{i}.log != LogEmpty"  for i in range(numNode)]) + "\n"
+      candidateCases = "\n  " + ",\n  ".join([f"node{i}.role = Candidate"                         for i in range(numNode)]) + "\n"
+      followerCases  = "\n  " + ",\n  ".join([f"node{i}.role = Follower & node{i}.votedFor != -1" for i in range(numNode)]) + "\n"
+      print(f"count({leaderCases}) = 0 & count({candidateCases}) = 0 & count({followerCases}) = 0 : {{Timeout, Noop, ClientReq}};")
+      print(f"count({leaderCases}) = 0 & count({candidateCases}) = 0 & count({followerCases}) > 0 : {{Timeout, Noop, ClientReq, VoteRsp}};")
+      print(f"count({leaderCases}) = 0 & count({candidateCases}) > 0 & count({followerCases}) = 0 : {{Timeout, Noop, ClientReq, VoteReq}};")
+      print(f"count({leaderCases}) = 0 & count({candidateCases}) > 0 & count({followerCases}) > 0 : {{Timeout, Noop, ClientReq, VoteReq, VoteRsp}};")
+      print(f"count({leaderCases}) > 0 & count({candidateCases}) = 0 & count({followerCases}) = 0 : {{Timeout, Noop, ClientReq, AppendEReq}};")
+      print(f"count({leaderCases}) > 0 & count({candidateCases}) = 0 & count({followerCases}) > 0 : {{Timeout, Noop, ClientReq, VoteRsp, AppendEReq}};")
+      print(f"count({leaderCases}) > 0 & count({candidateCases}) > 0 & count({followerCases}) = 0 : {{Timeout, Noop, ClientReq, VoteReq, AppendEReq}};")
+      print(f"count({leaderCases}) > 0 & count({candidateCases}) > 0 & count({followerCases}) > 0 : {{Timeout, Noop, ClientReq, VoteReq, VoteRsp, AppendEReq}};", end="")
       ⟩⟩⟩
     esac;
   next(eventSenderID) :=
     case
       ⟨⟨⟨ python
       lines = []
-      for i in range(0, ⟨=numNode⟩):
+      numNode = ⟨=numNode⟩
+      for i in range(0, numNode):
         lines.append(f"next(eventType) = VoteReq & node{i}.role = Candidate : {i};")
-      for i in range(0, ⟨=numNode⟩):
+      for i in range(0, numNode):
         lines.append(f"next(eventType) = VoteRsp & node{i}.role = Follower & node{i}.votedFor != -1 : {i};")
+      for i in range(0, numNode):
+        lines.append(f"next(eventType) = AppendEReq & node{i}.role = Leader & node{i}.log != LogEmpty : {i};")
       print("\n".join(lines), end="")
       ⟩⟩⟩
       next(eventType) = Timeout : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
@@ -87,13 +116,18 @@ ASSIGN
       ⟨⟨⟨ python
       lines = []
       numNode = ⟨=numNode⟩
-      lines += [f"next(eventType) = VoteReq & node{i}.role = Candidate : {{" + ", ".join(map(str, list(range(i + 1, numNode)) + list(range(i)))) + "};" for i in range(numNode)]
-      lines += [f"next(eventType) = VoteRsp & node{i}.role = Follower & node{i}.votedFor != -1 : node{i}.votedFor;" for i in range(numNode)]
+      for i in range(numNode):
+        lines.append(f"next(eventType) = VoteReq & next(eventSenderID) = {i} : {{" + ", ".join(map(str, list(range(i + 1, numNode)) + list(range(i)))) + "};")
+      for i in range(numNode):
+        lines.append(f"next(eventType) = VoteRsp & next(eventSenderID) = {i} & node{i}.votedFor != -1 : node{i}.votedFor;")
+      for i in range(numNode):
+        lines.append(f"next(eventType) = AppendEReq & next(eventSenderID) = {i} : {{" + ", ".join(map(str, list(range(i + 1, numNode)) + list(range(i)))) + "};")
       print("\n".join(lines), end="")
       ⟩⟩⟩
-      next(eventType) = Timeout : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
-      next(eventType) = Noop    : 0;
-      TRUE                      : 0;
+      next(eventType) = ClientReq : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
+      next(eventType) = Timeout   : {⟨!python -c 'print(", ".join(map(str, range(⟨=numNode⟩))))'⟩};
+      next(eventType) = Noop      : 0;
+      TRUE                        : 0;
     esac;
   next(oracleSenderIsNewer) :=
     case
@@ -103,8 +137,7 @@ ASSIGN
       for i in range(numNode):
         for j in range(numNode):
           if i != j:
-            lines.append(f"next(eventType) = VoteReq & next(eventSenderID) = {i} & next(eventReceiverID) = {j} & isNewest{i} & !isNewest{j} : TRUE;")
-            lines.append(f"next(eventType) = VoteRsp & next(eventSenderID) = {i} & next(eventReceiverID) = {j} & isNewest{i} & !isNewest{j} : TRUE;")
+            lines.append(f"next(eventType) in {{VoteReq, VoteRsp, AppendEReq}} & next(eventSenderID) = {i} & next(eventReceiverID) = {j} & isNewest{i} & !isNewest{j} : TRUE;")
       print("\n".join(lines), end="")
       ⟩⟩⟩
       TRUE : FALSE;
@@ -121,6 +154,18 @@ ASSIGN
       print("\n".join(lines), end="")
       ⟩⟩⟩
       TRUE : FALSE;
+    esac;
+  next(oracleLogContent) :=
+    case
+      next(eventType = ClientReq) : {LastFoo, LastBar};
+      ⟨⟨⟨ python
+      lines = []
+      numNode = ⟨=numNode⟩
+      for i in range(numNode):
+        lines.append(f"next(eventType = AppendEReq) & next(eventSenderID = {i}) & node{i}.log != LogEmpty : node{i}.log;")
+      print("\n".join(lines), end="")
+      ⟩⟩⟩
+      TRUE: oracleLogContent;
     esac;
 
   ⟨⟨⟨ python
@@ -143,17 +188,12 @@ ASSIGN
           next(eventSenderID) = {i} & !isNewest{i} : {{TRUE, FALSE}};
   {timeoutCases}
         esac;
-      next(eventType) = VoteReq:
+      next(eventType) in {{VoteReq, VoteRsp, AppendEReq, AppendERsp}}:
         case
   {reqRspCases}
           TRUE: isNewest{i};
         esac;
-      next(eventType) = VoteRsp:
-        case
-  {reqRspCases}
-          TRUE: isNewest{i};
-        esac;
-      next(eventType) = Noop: isNewest{i};
+      next(eventType) in {{Noop, ClientReq}}: isNewest{i};
     esac;
   """
     print(template[1 : -1], end="")
@@ -183,9 +223,13 @@ ASSIGN
 
 
 -- 几种事件都有可能发生
+CTLSPEC EF(eventType = Noop)
 CTLSPEC EF(eventType = Timeout)
 CTLSPEC EF(eventType = VoteReq)
 CTLSPEC EF(eventType = VoteRsp)
+CTLSPEC EF(eventType = ClientReq)
+CTLSPEC EF(eventType = AppendEReq)
+-- TODO CTLSPEC EF(eventType = AppendERsp)
 -- 总是有节点处于最新的状态
 CTLSPEC AG(⟨!python -c "print(' | '.join([f'isNewest{i}' for i in range(⟨=numNode⟩)]))"⟩)
 -- Raft 协议可能因为一致随机撞车导致始终没有 leader
@@ -216,4 +260,9 @@ CTLSPEC AG(node0.role = Leader & isNewest0 & node1.role != Leader -> AX node1.ro
 CTLSPEC !AG(isNewest0 & isNewest1 & node0.role = Leader & node1.role = Leader)
 -- 弱化的 election safety 属性：不可能有两个节点同时被选为 leader
 CTLSPEC !AG(node0.role != Leader & node1.role != Leader & EX (node0.role = Leader & node1.role = Leader))
+-- Log 最后一项的情况可能是 Foo 或者 Bar
+CTLSPEC EF(node0.log = LastFoo)
+CTLSPEC EF(node0.log = LastBar)
+--
+CTLSPEC AG(node0.role = Leader -> AX(node0.role = Leader -> (node0.logModification != LogChange)))
 
