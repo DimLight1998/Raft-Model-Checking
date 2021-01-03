@@ -1,15 +1,15 @@
 SHELL=/bin/zsh
 
-run: play.smv
-	/bin/time -f "%MKB, %e real, %U user, %S system" nusmv -r play.smv | grep -v "^\*\*\*" \
+run: raft.smv
+	/bin/time -f "%MKB, %e real, %U user, %S system" nusmv -r raft.smv | grep -v "^\*\*\*" \
 		| colout true green | colout false red
 
-int: play.smv
-	nusmv -int play.smv
+int: raft.smv
+	nusmv -int raft.smv
 
-play.smv: play.template.smv makefile
-	./gpp play.template.smv play.smv -DnumNode=4
+raft.smv: raft.template.smv makefile
+	./gpp raft.template.smv raft.smv -DnumNode=4
 
 clean:
-	rm play.smv
+	rm raft.smv
 
