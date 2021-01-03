@@ -66,6 +66,7 @@ VAR
   for i in range(⟨=numNode⟩):
     lines.append(f"isNewest{i}: boolean;")
     lines.append(f"voteAcpt{i}: boolean;")
+    lines.append(f"logUpToDate{i}: boolean;")
     lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority, oracleLogContent);")
   print("\n".join(lines), end="")
   ⟩⟩⟩
@@ -172,6 +173,8 @@ ASSIGN
   print("\n".join([f"init(isNewest{i}) := TRUE;" for i in range(⟨=numNode⟩)]), end="")
   ⟩⟩⟩
 
+  -- change isNewest for each node
+
   ⟨⟨⟨ python
   numNode = ⟨=numNode⟩
   for i in range(numNode):
@@ -201,6 +204,8 @@ ASSIGN
       print()
   ⟩⟩⟩
 
+  -- change voteAcpt for each node
+
   ⟨⟨⟨ python
   print("\n".join([f"init(voteAcpt{i}) := FALSE;" for i in range(⟨=numNode⟩)]), end="")
   ⟩⟩⟩
@@ -220,6 +225,29 @@ ASSIGN
     if i != ⟨=numNode⟩ - 1:
       print()
   ⟩⟩⟩
+
+  -- change logUpToDate for each node
+
+  ⟨⟨⟨ python
+  print("\n".join([f"init(logUpToDate{i}) := FALSE;" for i in range(⟨=numNode⟩)]), end="")
+  ⟩⟩⟩
+
+  ⟨⟨⟨ python
+  for i in range(⟨=numNode⟩):
+    template = \
+  f"""
+  next(logUpToDate{i}) := case
+    next(eventType) = AppendEReq & next(eventReceiverID) = {i} & node{i}.logModification = LogAppend : TRUE;
+    next(eventType) = ClientReq & next(eventReceiverID) = {i} & node{i}.role = Leader: TRUE;
+    next(eventType) = ClientReq : FALSE;
+    TRUE : logUpToDate{i};
+  esac;
+  """
+    print(template[1 : -1], end="")
+    if i != ⟨=numNode⟩ - 1:
+      print()
+  ⟩⟩⟩
+
 
 
 -- 几种事件都有可能发生
@@ -261,8 +289,15 @@ CTLSPEC !AG(isNewest0 & isNewest1 & node0.role = Leader & node1.role = Leader)
 -- 弱化的 election safety 属性：不可能有两个节点同时被选为 leader
 CTLSPEC !AG(node0.role != Leader & node1.role != Leader & EX (node0.role = Leader & node1.role = Leader))
 -- Log 最后一项的情况可能是 Foo 或者 Bar
+CTLSPEC EF(node0.log = LogEmpty)
 CTLSPEC EF(node0.log = LastFoo)
 CTLSPEC EF(node0.log = LastBar)
---
+-- 弱化的 leader append-only 属性：归纳性质，如果一个节点是 leader，并且下一个状态依然是 leader，那么它下一个状态不会 change log
+CTLSPEC EF(node0.logModification = LogChange)
+CTLSPEC EF(node0.role = Leader -> EF(node0.logModification = LogChange))
 CTLSPEC AG(node0.role = Leader -> AX(node0.role = Leader -> (node0.logModification != LogChange)))
+-- 弱化的 log matching 属性：如果两个节点的 log 都是 up-to-date 的，那么它们的 log 必然是相同的
+CTLSPEC EF(logUpToDate0)
+CTLSPEC EF(!logUpToDate0)
+CTLSPEC AG(logUpToDate0 & logUpToDate1 -> node0.log = node1.log)
 
