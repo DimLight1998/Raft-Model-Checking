@@ -1,4 +1,4 @@
-MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority, oracleLogContent)
+MODULE node(nodeID, isNewest, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleSenderLogUpToDate, oracleWinMajority, oracleLogContent)
 VAR
   role: {Follower, Candidate, Leader};
   votedFor: -1 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
@@ -36,13 +36,13 @@ ASSIGN
   next(votedFor) :=
     case
       next(role) = Candidate: nodeID;
-      next(eventType) = VoteReq & next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): next(eventSenderID);
+      next(eventType) = VoteReq & next(eventReceiverID) = nodeID & next(oracleSenderIsNewer) & next(oracleSenderLogUpToDate): next(eventSenderID);
       TRUE: votedFor;
     esac;
   next(log) :=
     case
       next(eventType = ClientReq)  & next(eventReceiverID) = nodeID & role = Leader : next(oracleLogContent);
-      next(eventType = AppendEReq) & next(eventReceiverID) = nodeID & next(oracleSenderIsNewer): next(oracleLogContent);
+      next(eventType = AppendEReq) & next(eventReceiverID) = nodeID & next(oracleSenderLogUpToDate): next(oracleLogContent);
       TRUE: log;
     esac;
   next(logModification) :=
@@ -60,6 +60,7 @@ VAR
   eventSenderID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   eventReceiverID: 0 .. ⟨!echo $((⟨=numNode⟩ - 1))⟩;
   oracleSenderIsNewer: boolean;
+  oracleSenderLogUpToDate: boolean;
   oracleWinMajority: boolean;
   oracleLogContent: {LastFoo, LastBar};
   oracleLastCommittedLogContent: {LastFoo, LastBar, LogEmpty};
@@ -69,7 +70,7 @@ VAR
     lines.append(f"isNewest{i}: boolean;")
     lines.append(f"voteAcpt{i}: boolean;")
     lines.append(f"logUpToDate{i}: boolean;")
-    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleWinMajority, oracleLogContent);")
+    lines.append(f"node{i}: node({i}, isNewest{i}, eventType, eventSenderID, eventReceiverID, oracleSenderIsNewer, oracleSenderLogUpToDate, oracleWinMajority, oracleLogContent);")
   print("\n".join(lines), end="")
   ⟩⟩⟩
 ASSIGN
@@ -77,6 +78,7 @@ ASSIGN
   init(eventSenderID) := 0;
   init(eventReceiverID) := 0;
   init(oracleSenderIsNewer) := FALSE;
+  init(oracleSenderLogUpToDate) := TRUE;
   init(oracleWinMajority) := FALSE;
   init(oracleLogContent) := LastFoo;
   init(oracleLastCommittedLogContent) := LogEmpty;
@@ -145,6 +147,17 @@ ASSIGN
       print("\n".join(lines), end="")
       ⟩⟩⟩
       TRUE : FALSE;
+    esac;
+  next(oracleSenderLogUpToDate) :=
+    case
+      ⟨⟨⟨ python
+      lines = []
+      numNode = ⟨=numNode⟩
+      for i in range(numNode):
+        lines.append(f"next(eventSenderID) = {i} & next(logUpToDate{i}): TRUE;")
+      print("\n".join(lines), end="")
+      ⟩⟩⟩
+      TRUE: FALSE;
     esac;
   next(oracleWinMajority) :=
     case
@@ -243,7 +256,7 @@ ASSIGN
   -- change logUpToDate for each node
 
   ⟨⟨⟨ python
-  print("\n".join([f"init(logUpToDate{i}) := FALSE;" for i in range(⟨=numNode⟩)]), end="")
+  print("\n".join([f"init(logUpToDate{i}) := TRUE;" for i in range(⟨=numNode⟩)]), end="")
   ⟩⟩⟩
 
   ⟨⟨⟨ python
@@ -313,5 +326,6 @@ CTLSPEC AG(node0.role = Leader -> AX(node0.role = Leader -> (node0.logModificati
 CTLSPEC EF(logUpToDate0)
 CTLSPEC EF(!logUpToDate0)
 CTLSPEC AG(logUpToDate0 & logUpToDate1 -> node0.log = node1.log)
+-- 弱化的 leader completeness 属性：一个节点在成为 leader 后，如果当前存在提交过的 log，那么它的 log 必然和这个一致
+CTLSPEC AG(node0.role != Leader -> AX(node0.role = Leader & oracleLastCommittedLogContent != LogEmpty -> node0.log = oracleLastCommittedLogContent))
 
-CTLSPEC AG(node0.role != Leader -> AX(node0.role = Leader -> node0.log = oracleLastCommittedLogContent))
