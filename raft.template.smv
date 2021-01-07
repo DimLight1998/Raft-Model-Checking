@@ -311,9 +311,9 @@ CTLSPEC EF(node0.role = Leader & node1.role = Leader)
 -- 如果当前存在一个处于最新任期的 leader，那么其他节点不可能立即变成 leader
 CTLSPEC AG(node0.role = Leader & isNewest0 & node1.role != Leader -> AX node1.role != Leader)
 -- 弱化的 election safety 属性：不可能有两个同时都是处于最新任期的 leader
-CTLSPEC !AG(isNewest0 & isNewest1 & node0.role = Leader & node1.role = Leader)
+CTLSPEC AG!(isNewest0 & isNewest1 & node0.role = Leader & node1.role = Leader)
 -- 弱化的 election safety 属性：不可能有两个节点同时被选为 leader
-CTLSPEC !AG(node0.role != Leader & node1.role != Leader & EX (node0.role = Leader & node1.role = Leader))
+CTLSPEC AG!(node0.role != Leader & node1.role != Leader & EX (node0.role = Leader & node1.role = Leader))
 -- Log 最后一项的情况可能是 Foo 或者 Bar
 CTLSPEC EF(node0.log = LogEmpty)
 CTLSPEC EF(node0.log = LastFoo)
